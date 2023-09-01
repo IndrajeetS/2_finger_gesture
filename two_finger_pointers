@@ -1,0 +1,113 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+
+class EnableTwoFingerPointerWidget extends StatelessWidget {
+  final Widget? child;
+  final OnUpdate onUpdate;
+  final OnDragEnd onDragEnd;
+  final HitTestBehavior? behavior;
+
+  const EnableTwoFingerPointerWidget({
+    Key? key,
+    this.child,
+    required this.onUpdate,
+    required this.onDragEnd,
+    this.behavior,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget gestureDetector = RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory>{
+        CustomMultiDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+            CustomMultiDragGestureRecognizer>(
+          () => CustomMultiDragGestureRecognizer(debugOwner: this),
+          (CustomMultiDragGestureRecognizer instance) {
+            instance.onStart = (Offset position) {
+              return CustomDrag(
+                events: instance.events,
+                onUpdate: onUpdate,
+                onDragEnd: onDragEnd,
+              );
+            };
+          },
+        ),
+      },
+      behavior: behavior,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints.expand(),
+        child: child,
+      ),
+    );
+
+    return gestureDetector;
+  }
+}
+
+typedef OnUpdate = Function(DragUpdateDetails details);
+typedef OnDragEnd = Function();
+
+class CustomDrag extends Drag {
+  final List<PointerDownEvent> events;
+  final OnUpdate onUpdate;
+  final OnDragEnd onDragEnd;
+
+  CustomDrag({
+    required this.events,
+    required this.onUpdate,
+    required this.onDragEnd,
+  });
+
+  @override
+  void update(DragUpdateDetails details) {
+    super.update(details);
+    if (events.length == 2) {
+      onUpdate.call(details);
+    }
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    onDragEnd.call();
+    super.end(details);
+  }
+}
+
+class CustomMultiDragGestureRecognizer extends MultiDragGestureRecognizer {
+  final List<PointerDownEvent> events = [];
+
+  CustomMultiDragGestureRecognizer({required Object? debugOwner})
+      : super(debugOwner: debugOwner);
+
+  @override
+  createNewPointerState(PointerDownEvent event) {
+    events.add(event);
+    return _CustomMultiPointerState(event.position, onDisposeState: () {
+      events.remove(event);
+    });
+  }
+
+  @override
+  String get debugDescription => 'custom multi drag';
+}
+
+typedef OnDisposeState = Function();
+
+class _CustomMultiPointerState extends MultiDragPointerState {
+  final OnDisposeState onDisposeState;
+
+  _CustomMultiPointerState(Offset initialPosition,
+      {required this.onDisposeState})
+      : super(initialPosition, PointerDeviceKind.touch, null);
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
+  }
+
+  @override
+  void dispose() {
+    onDisposeState.call();
+    super.dispose();
+  }
+}
